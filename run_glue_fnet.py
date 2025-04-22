@@ -1,9 +1,9 @@
-# run_glue_fnet.py
+import os
 import sys
 import logging
 import datasets
 from datasets import load_dataset
-from evaluate import load_metric  
+from evaluate.loading import load as load_metric 
 
 import transformers
 from transformers import (
@@ -20,8 +20,24 @@ from typing import Optional
 
 # Import our custom FNet model and config
 from fnet_model import FNetConfig, FNetForSequenceClassification
+from custom_fnet_model import CustomFNetForSequenceClassification
+
 
 logger = logging.getLogger(__name__)
+
+# --- Add this at the top ---
+print("--- sys.argv ---")
+print(sys.argv)
+print("----------------")
+
+# --- Inspect TrainingArguments ---
+print("--- TrainingArguments Fields ---")
+for name in dir(TrainingArguments):
+    if not name.startswith("_"):
+        print(name)
+print("----------------")
+# -------------------------
+
 
 # --- Argument Parsing ---
 @dataclass
@@ -63,6 +79,8 @@ class ModelArguments:
     num_hidden_layers: Optional[int] = field(default=None, metadata={"help": "Override FNet num layers"})
     intermediate_size: Optional[int] = field(default=None, metadata={"help": "Override FNet intermediate size"})
 
+# Define the list of valid GLUE tasks
+VALID_GLUE_TASKS = ["cola", "mnli", "mrpc", "qnli", "qqp", "rte", "sst2", "stsb", "wnli"]
 
 @dataclass
 class DataTrainingArguments:
@@ -70,8 +88,11 @@ class DataTrainingArguments:
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
     task_name: Optional[str] = field(
-        default="cola", metadata={"help": "The name of the glue task to train on.", "choices": list(datasets.load_dataset('glue').keys())}
-    )
+        default="cola",
+        metadata={
+            "help": "The name of the glue task to train on.",
+            "choices": VALID_GLUE_TASKS
+        })
     max_seq_length: int = field(
         default=128,
         metadata={
@@ -132,14 +153,64 @@ task_to_keys = {
 }
 
 def main():
-    # --- Setup ---
+    # Parse arguments
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    
+    # Handle JSON config file if provided
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        # If we pass only one argument to the script and it's the path to a json file,
-        # let's parse it to get our arguments.
         model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        # Create a training args object first to check its fields
+        try:
+            dummy_training_args = TrainingArguments(output_dir="./dummy")
+            print("--- TrainingArguments instance attributes ---")
+            for key, value in vars(dummy_training_args).items():
+                print(f"{key}: {value}")
+            print("-" * 40)
+        except Exception as e:
+            print(f"Error inspecting training args: {e}")
+        
+        # Skip argument preprocessing and use manual creation
+        training_args = TrainingArguments(
+            output_dir="/tmp/fnet_cola_output",
+            do_train=True,
+            do_eval=True,
+            per_device_train_batch_size=32,
+            learning_rate=2e-5,
+            num_train_epochs=3,
+            # We'll try using eval_strategy and save_strategy instead
+            eval_strategy="epoch",      # Try this instead of evaluation_strategy
+            save_strategy="epoch",
+            # Also try the boolean flag with value True
+            load_best_model_at_end=True,
+            metric_for_best_model="matthews_correlation",
+            overwrite_output_dir=True,
+            logging_steps=100
+        )
+        
+        # Parse the other args normally
+        args_to_parse = []
+        for i, arg in enumerate(sys.argv):
+            if arg.startswith("--") and arg not in ["--evaluation_strategy", "--save_strategy", "--load_best_model_at_end", "--output_dir", "--do_train", "--do_eval", "--per_device_train_batch_size", "--learning_rate", "--num_train_epochs", "--metric_for_best_model", "--overwrite_output_dir", "--logging_steps"]:
+                args_to_parse.append(arg)
+                if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("--"):
+                    args_to_parse.append(sys.argv[i + 1])
+        
+        # Add required --output_dir for parsing
+        args_to_parse.extend(["--output_dir", "/tmp/dummy"])
+        
+        try:
+            print(f"Parsing reduced args: {args_to_parse}")
+            model_parser = HfArgumentParser((ModelArguments,))
+            data_parser = HfArgumentParser((DataTrainingArguments,))
+            
+            model_args, _ = model_parser.parse_args_into_dataclasses(args=args_to_parse, return_remaining_strings=True)
+            data_args, _ = data_parser.parse_args_into_dataclasses(args=args_to_parse, return_remaining_strings=True)
+        except Exception as e:
+            print(f"Error during parsing: {e}")
+            # Fallback to defaults
+            model_args = ModelArguments(model_name_or_path="fnet-base", tokenizer_name="bert-base-uncased")
+            data_args = DataTrainingArguments(task_name="cola")
 
     # Setup logging
     logging.basicConfig(
@@ -149,20 +220,24 @@ def main():
     )
     log_level = training_args.get_process_log_level()
     logger.setLevel(log_level)
+
     datasets.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
 
+    # Log important info
     logger.warning(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f"distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
     logger.info(f"Training/evaluation parameters {training_args}")
 
+    # Set random seed for reproducibility
     set_seed(training_args.seed)
 
     # --- Load Data ---
+    print(f"task_name: {data_args.task_name}")
     raw_datasets = load_dataset("glue", data_args.task_name, cache_dir=model_args.cache_dir)
     is_regression = data_args.task_name == "stsb"
     if not is_regression:
@@ -184,50 +259,44 @@ def main():
     # --- Load Model ---
     # Create FNet config
     # You can define base/large configs here or load from a json
+    # --- Load Model ---
+    print(f"Initializing FNet model with configuration: {model_args.model_name_or_path}")
+
+    # Set configuration based on model size
     if model_args.model_name_or_path == "fnet-base":
-         config = FNetConfig(
-             vocab_size=tokenizer.vocab_size, # Use tokenizer's vocab size
-             hidden_size=model_args.hidden_size or 768,
-             num_hidden_layers=model_args.num_hidden_layers or 12,
-             intermediate_size=model_args.intermediate_size or 3072,
-             num_labels=num_labels,
-             pad_token_id=tokenizer.pad_token_id,
-             type_vocab_size=2 # Assuming BERT-like type embeddings
-         )
+        hidden_size = model_args.hidden_size or 768
+        num_hidden_layers = model_args.num_hidden_layers or 12
+        intermediate_size = model_args.intermediate_size or 3072
     elif model_args.model_name_or_path == "fnet-large":
-         config = FNetConfig(
-             vocab_size=tokenizer.vocab_size,
-             hidden_size=model_args.hidden_size or 1024,
-             num_hidden_layers=model_args.num_hidden_layers or 24,
-             intermediate_size=model_args.intermediate_size or 4096,
-             num_labels=num_labels,
-             pad_token_id=tokenizer.pad_token_id,
-             type_vocab_size=2
-         )
+        hidden_size = model_args.hidden_size or 1024
+        num_hidden_layers = model_args.num_hidden_layers or 24
+        intermediate_size = model_args.intermediate_size or 4096
     else:
-        # Try loading a saved config (if you saved one previously)
-        config = FNetConfig.from_pretrained(
-            model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-            num_labels=num_labels,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            use_auth_token=True if model_args.use_auth_token else None,
-        )
-        # Apply overrides if any
-        if model_args.hidden_size: config.hidden_size = model_args.hidden_size
-        if model_args.num_hidden_layers: config.num_hidden_layers = model_args.num_hidden_layers
-        if model_args.intermediate_size: config.intermediate_size = model_args.intermediate_size
+        # Default to base if something else is specified
+        hidden_size = model_args.hidden_size or 768
+        num_hidden_layers = model_args.num_hidden_layers or 12
+        intermediate_size = model_args.intermediate_size or 3072
+        print(f"Using default 'base' configuration for unknown model: {model_args.model_name_or_path}")
 
-
-    # Instantiate the FNet model for sequence classification
-    model = FNetForSequenceClassification.from_pretrained(
-         model_args.model_name_or_path, # Will initialize NEW weights if path doesn't exist
-         config=config,                 # Pass the config
-         cache_dir=model_args.cache_dir,
-         revision=model_args.model_revision,
-         use_auth_token=True if model_args.use_auth_token else None,
-         ignore_mismatched_sizes=True # Important if initializing from scratch or diff architecture
+    # Create config
+    config = FNetConfig(
+        vocab_size=tokenizer.vocab_size,
+        hidden_size=hidden_size,
+        num_hidden_layers=num_hidden_layers,
+        intermediate_size=intermediate_size,
+        num_labels=num_labels,
+        pad_token_id=tokenizer.pad_token_id,
+        type_vocab_size=2
     )
+
+    print(f"Created FNet config with: {num_hidden_layers} layers, {hidden_size} hidden size")
+
+    # Create model directly from config (NO from_pretrained calls at all)
+    #model = FNetForSequenceClassification(config)
+    #print(f"Initialized FNet model from scratch with configuration")
+    model = CustomFNetForSequenceClassification(config)
+    print(f"Initialized custom FNet model from scratch with configuration")
+
 
     # --- Preprocess Data ---
     sentence1_key, sentence2_key = task_to_keys[data_args.task_name]
