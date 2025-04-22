@@ -22,6 +22,7 @@ https://doi.org/10.48550/arXiv.2105.03824
     ```bash
     pip install torch transformers datasets evaluate accelerate # Accelerate needed for Trainer
     pip install scikit-learn scipy # Needed for some GLUE metrics
+    pip install evaluate==0.4.0 # or a higher compatible version
     ```
 2.  **Run Fine-tuning:** Execute the script from your terminal. You need to specify the task name and an output directory.
 
