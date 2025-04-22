@@ -38,6 +38,49 @@ for name in dir(TrainingArguments):
 print("----------------")
 # -------------------------
 
+def get_huggingface_token():
+    """Get the Hugging Face token with fallback mechanisms"""
+    # First try to load from .env file
+    try:
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()  # Load from .env file
+        env_token = os.environ.get("HF_TOKEN")
+        if env_token:
+            print("Using token from .env file")
+            return env_token
+    except ImportError:
+        print("python-dotenv not installed, trying other methods")
+    except Exception as e:
+        print(f"Error loading from .env: {e}")
+    
+    # Then try environment variables directly
+    import os
+    env_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
+    if env_token:
+        print("Using token from environment variables")
+        return env_token
+    
+    # Try to get from huggingface CLI cache
+    try:
+        import json
+        from pathlib import Path
+        home = Path.home()
+        token_path = home / ".huggingface" / "token"
+        if token_path.exists():
+            with open(token_path, "r") as f:
+                hf_cache_token = f.read().strip()
+                if hf_cache_token:
+                    print("Using token from HuggingFace CLI cache")
+                    return hf_cache_token
+    except Exception as e:
+        print(f"Error getting token from cache: {e}")
+    
+    # If all else fails, prompt the user
+    print("No HuggingFace token found in any source.")
+    print("Please provide a token or set it in a .env file or environment variable.")
+    return None
+
 
 # --- Argument Parsing ---
 @dataclass
@@ -246,14 +289,16 @@ def main():
     else:
         num_labels = 1
 
-    # --- Load Tokenizer ---
-    # FNet requires a pre-trained tokenizer (e.g., from BERT)
+    # Use this token in your script
+    token = get_huggingface_token()
+
+    # When loading the tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
         revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
+        token=token  # Use token instead of use_auth_token
     )
 
     # --- Load Model ---
@@ -323,8 +368,10 @@ def main():
         mnli_mismatched_eval_dataset = processed_datasets["validation_mismatched"]
 
 
-    # Log a few random samples from the training set:
-    for index in np.random.randint(0, len(train_dataset), 3):
+    import random
+    for index in random.sample(range(len(train_dataset)), min(3, len(train_dataset))):
+        # Convert to regular Python int to avoid numpy.int64 issues
+        index = int(index)  # Explicit conversion to Python int
         logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
 
     # --- Metrics ---
