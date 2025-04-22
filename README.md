@@ -20,7 +20,7 @@ https://doi.org/10.48550/arXiv.2105.03824
 
 1.  **Install Dependencies:**
     ```bash
-    pip install torch transformers datasets evaluate accelerate # Accelerate needed for Trainer
+    pip install torch transformers datasets accelerate # Accelerate needed for Trainer
     pip install scikit-learn scipy # Needed for some GLUE metrics
     pip install evaluate==0.4.0 # or a higher compatible version
     ```
