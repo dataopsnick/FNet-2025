@@ -3,13 +3,17 @@
 Implementation of FNet: Mixing Tokens with Fourier Transforms [1] (https://arxiv.org/abs/2105.03824) in PyTorch w/ a basic GLUE benchmarking script using the `transformers` library.
 
 ## Paper Citation
+
 [1] James Lee-Thorp, Joshua Ainslie, Ilya Eckstein, Santiago Ontanon
+
 arXiv:2105.03824v4 [cs.CL] 26 May 2022 
+
 https://doi.org/10.48550/arXiv.2105.03824
 
 ## Repository Contents
 
 **1. FNet Model Implementation (fnet_model.py)**
+
 **2. GLUE Benchmarking Script (run_glue_fnet.py)**
 
 ## 3. How to Run
