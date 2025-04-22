@@ -2,7 +2,9 @@
 import sys
 import logging
 import datasets
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
+from evaluate import load_metric  
+
 import transformers
 from transformers import (
     AutoTokenizer,
