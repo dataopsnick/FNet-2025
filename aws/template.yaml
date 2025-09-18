@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Provisions an S3 bucket and an IAM Role for running SageMaker
+  Hyperparameter Tuning jobs for the Causal FNet project.
+
+Parameters:
+  BucketNamePrefix:
+    Type: String
+    Default: "sagemaker-fnet-experiments"
+    Description: "Prefix for the S3 bucket. A unique name will be generated."
+  
+  RoleName:
+    Type: String
+    Default: "SageMaker-FNet-ExecutionRole"
+    Description: "Name for the IAM Role for SageMaker execution."
+
+Resources:
+  # 1. S3 Bucket for SageMaker artifacts (data, models, outputs)
+  SageMakerBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${BucketNamePrefix}-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # 2. IAM Role for SageMaker execution
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # This policy is required for SageMaker to manage training jobs,
+        # access ECR, create log streams, etc.
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+      Policies:
+        # This inline policy grants specific permissions ONLY to the bucket created above.
+        - PolicyName: SageMakerS3BucketAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::${SageMakerBucket}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt SageMakerBucket.Arn
+
+Outputs:
+  SageMakerBucketName:
+    Description: "Name of the S3 bucket created for SageMaker artifacts."
+    Value: !Ref SageMakerBucket
+  
+  SageMakerRoleArn:
+    Description: "ARN of the IAM Role for SageMaker execution."
+    Value: !GetAtt SageMakerExecutionRole.Arn

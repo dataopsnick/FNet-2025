@@ -1,0 +1,7 @@
+transformers>=4.38.0
+datasets==2.18.0
+accelerate>=0.29.0
+evaluate==0.4.1
+peft==0.10.0
+sagemaker-training # Add this for SMDDP
+deepspeed # Required backend for model sharding
