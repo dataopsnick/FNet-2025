@@ -5,7 +5,7 @@ from transformers import Trainer, TrainingArguments, DataCollatorForLanguageMode
 from model import CausalFNetForCausalLM, FNetConfig
 from data import get_tokenized_dataset
 #import smdistributed.dataparallel.torch.torch_smddp
-import smdistributed.modelparallel.torch as smp
+#import smdistributed.modelparallel.torch as smp
 
 def main():
     parser = argparse.ArgumentParser()

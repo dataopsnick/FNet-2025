@@ -37,7 +37,7 @@ estimator = PyTorch(
     image_uri=image_uri,
     role=sagemaker_role,
     instance_count=1,
-    instance_type="p3.8xlarge" #"ml.p4d.24xlarge",  # 8x A100 40GB GPUs
+    instance_type= "ml.p3.8xlarge", #"ml.g4dn.xlarge" #"p3.8xlarge" #"ml.p4d.24xlarge",  # 8x A100 40GB GPUs
     volume_size=100,  # GB of EBS storage
     output_path=f"s3://{bucket}/fnet-training/output",
     code_location=f"s3://{bucket}/fnet-training/code",
@@ -64,7 +64,7 @@ estimator = PyTorch(
 # Define hyperparameter ranges for tuning
 hyperparameter_ranges = {
     # Model architecture parameters
-    "hidden_size": CategoricalParameter([1024]), #[256, 384, 512, 768, 1024, 1280, 1536]),
+    "hidden_size": CategoricalParameter([1024, 1536]), #[256, 384, 512, 768, 1024, 1280, 1536]),
     "num_hidden_layers": CategoricalParameter([4]), #[4, 6, 8, 10, 12]),
     "stft_window_size": CategoricalParameter([512, 1024]), #[64, 128, 256, 512, 1024]),
     
@@ -80,7 +80,7 @@ tuner = HyperparameterTuner(
     metric_definitions=estimator.metric_definitions,
     strategy="Grid", #"Bayesian",  # More efficient than Grid for large spaces
     objective_type="Minimize",
-    max_jobs=2,  # Total number of training jobs
+    max_jobs=4,  # Total number of training jobs
     max_parallel_jobs=2,  # Parallel jobs (be mindful of quotas)
     early_stopping_type="Auto",  # Stop poor performing jobs early
 )

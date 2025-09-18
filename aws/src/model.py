@@ -12,7 +12,6 @@ from transformers import PreTrainedModel
 from transformers.modeling_utils import PretrainedConfig
 from typing import Optional, Tuple
 import numpy as np
-from scipy.fft import fft, ifft
 
 class FNetConfig(PretrainedConfig):
     model_type = "fnet"
@@ -47,21 +46,15 @@ class FourierTransform(nn.Module):
         
     def forward(self, hidden_states):
         batch_size, seq_len, hidden_dim = hidden_states.shape
-        device = hidden_states.device
         
-        # Move to CPU for FFT computation
-        hidden_states_cpu = hidden_states.detach().cpu().numpy()
+        # Use PyTorch FFT which stays on GPU
+        fft_output = torch.fft.fft(hidden_states, dim=1, norm='ortho')
         
-        # Apply FFT along sequence dimension
-        fft_output = fft(hidden_states_cpu, axis=1, norm='ortho')
+        # Take real part for simplicity (you could also use complex operations)
+        real_part = fft_output.real
         
-        # Take only real part for simplicity (you could also use complex operations)
-        real_part = np.real(fft_output)
-        
-        # Convert back to tensor
-        output = torch.from_numpy(real_part).to(device).to(hidden_states.dtype)
-        
-        return output
+        return real_part
+
 
 class FNetLayer(nn.Module):
     def __init__(self, config):
