@@ -1,77 +1,106 @@
-# scripts/launch_sagemaker_job.py
 import sagemaker
 from sagemaker.pytorch import PyTorch
-from sagemaker.tuner import HyperparameterTuner, CategoricalParameter
+from sagemaker.tuner import HyperparameterTuner, CategoricalParameter, ContinuousParameter
 import boto3
 import time
+from datetime import datetime
 
-# --- Configuration ---
+# Configuration
 account_id = boto3.client("sts").get_caller_identity().get("Account")
-region = "us-west-2"
-image_uri = f"{account_id}.dkr.ecr.{region}.amazonaws.com/causal-fnet-repo:latest"
-sagemaker_role = "arn:aws:iam::{account_id}:role/SageMakerExecutionRole" # UPDATE THIS
-bucket = "your-sagemaker-bucket-name" # UPDATE THIS
-s3_prefix = "fnet-p4d-grid-search"
+region = boto3.Session().region_name or "us-west-2"
+role_name = "SageMaker-FNet-ExecutionRole"
+bucket_prefix = "sagemaker-fnet-experiments"
 
-# --- 1. Define the Distributed Training Estimator ---
-# This configures SageMaker to use all 8 GPUs on the instance.
+# Construct resource names
+sagemaker_role = f"arn:aws:iam::{account_id}:role/{role_name}"
+bucket = f"{bucket_prefix}-{account_id}-{region}"
+image_uri = f"{account_id}.dkr.ecr.{region}.amazonaws.com/causal-fnet-repo:latest"
+
+print(f"Account ID: {account_id}")
+print(f"Region: {region}")
+print(f"Role ARN: {sagemaker_role}")
+print(f"S3 Bucket: {bucket}")
+print(f"Image URI: {image_uri}")
+
+# Create SageMaker session
+sagemaker_session = sagemaker.Session(default_bucket=bucket)
+
+# Configure distributed training for multi-GPU
 distribution = {
-    "smdistributed": {
-        "dataparallel": {
-            "enabled": True
-        }
+    "torch_distributed": {
+        "enabled": True
     }
 }
 
-estimator = PyTorch( # Use the PyTorch estimator for easy distribution config
-    entry_point="train.py",
-    source_dir="../src",
+# Create the PyTorch estimator
+estimator = PyTorch(
     image_uri=image_uri,
     role=sagemaker_role,
     instance_count=1,
-    instance_type="ml.p4d.24xlarge", # Using the A100-based instance
-    output_path=f"s3://{bucket}/{s3_prefix}/output",
-    sagemaker_session=sagemaker.Session(),
-    distribution=distribution, # Apply the distributed training config
+    instance_type="p3.8xlarge" #"ml.p4d.24xlarge",  # 8x A100 40GB GPUs
+    volume_size=100,  # GB of EBS storage
+    output_path=f"s3://{bucket}/fnet-training/output",
+    code_location=f"s3://{bucket}/fnet-training/code",
+    sagemaker_session=sagemaker_session,
+    distribution=distribution,
     hyperparameters={
-        "num_train_epochs": 3, # Minimal epochs for cost efficiency
-        "num_hidden_layers": 4,
-        "intermediate_size": 4096, # Increased to match larger hidden sizes
+        "num_train_epochs": 3,
+        "gradient_accumulation_steps": 4,
+        "per_device_train_batch_size": 8,
         "learning_rate": 5e-4,
+        "warmup_steps": 500,
+        "weight_decay": 0.01,
     },
-    use_spot_instances=True,
-    max_run=7200, # Allow 2 hours for each trial
-    max_wait=8000,
+    metric_definitions=[
+        {"Name": "train_loss", "Regex": r"'loss': (\S+)"},
+        {"Name": "eval_loss", "Regex": r"'eval_loss': (\S+)"},
+        {"Name": "eval_perplexity", "Regex": r"'eval_perplexity': (\S+)"},
+    ],
+    use_spot_instances=True,  # Use spot for cost savings
+    max_run=7200,  # 2 hours max runtime
+    max_wait=8000,  # Wait up to 2.2 hours including spot wait time
 )
 
-# --- 2. Define the Ambitious 10x8 Grid for "Dataviz ROI" ---
+# Define hyperparameter ranges for tuning
 hyperparameter_ranges = {
-    "stft_window_size": CategoricalParameter([
-        64, 128, 256, 384, 512, 768, 1024, 1536
-    ]),
-    "hidden_size": CategoricalParameter([
-        256, 384, 512, 768, 1024, 1280, 1536, 1792, 2048, 2560
-    ]),
+    # Model architecture parameters
+    "hidden_size": CategoricalParameter([1024]), #[256, 384, 512, 768, 1024, 1280, 1536]),
+    "num_hidden_layers": CategoricalParameter([4]), #[4, 6, 8, 10, 12]),
+    "stft_window_size": CategoricalParameter([512, 1024]), #[64, 128, 256, 512, 1024]),
+    
+    # Training parameters  
+    "learning_rate": ContinuousParameter(1e-5, 1e-3),
 }
 
-# --- 3. Define Objective Metric ---
-objective_metric_name = "eval_loss"
-metric_definitions = [{"Name": "eval_loss", "Regex": "'eval_loss': ([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)"}]
-
-# --- 4. Create and Configure the HyperparameterTuner ---
+# Configure the tuner
 tuner = HyperparameterTuner(
     estimator=estimator,
-    objective_metric_name=objective_metric_name,
+    objective_metric_name="eval_loss",
     hyperparameter_ranges=hyperparameter_ranges,
-    metric_definitions=metric_definitions,
-    strategy="Grid",
+    metric_definitions=estimator.metric_definitions,
+    strategy="Grid", #"Bayesian",  # More efficient than Grid for large spaces
     objective_type="Minimize",
-    max_jobs=80, # 10 hidden sizes * 8 window sizes = 80 jobs
-    max_parallel_jobs=10, # Run up to 10 trials in parallel
+    max_jobs=2,  # Total number of training jobs
+    max_parallel_jobs=2,  # Parallel jobs (be mindful of quotas)
+    early_stopping_type="Auto",  # Stop poor performing jobs early
 )
 
-# --- 5. Launch the Job ---
-job_name = f"fnet-viz-p4d-grid-{int(time.time())}"
-tuner.fit(job_name=job_name, wait=False) # Set wait=False to run in the background
+# Launch the hyperparameter tuning job
+job_name = f"fnet-tuning-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
-print(f"--- Submitted Hyperparameter tuning job '{job_name}'. Monitor progress in the SageMaker console. ---")
+print(f"\nLaunching hyperparameter tuning job: {job_name}")
+print("This will run in the background. Monitor progress in the SageMaker console.")
+
+tuner.fit(
+    job_name=job_name,
+    wait=False  # Run asynchronously
+)
+
+print(f"\n✅ Job submitted successfully!")
+print(f"View progress at: https://console.aws.amazon.com/sagemaker/home?region={region}#/hyper-tuning-jobs/{job_name}")
+
+# Optionally, show how to retrieve best model later
+print("\nTo retrieve the best model configuration later, use:")
+print(f"tuner = HyperparameterTuner.attach('{job_name}')")
+print("best_trial = tuner.best_training_job()")
+print("print(best_trial)")
