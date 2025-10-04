@@ -13,8 +13,12 @@ echo "Account: ${ACCOUNT_ID}"
 echo "Region: ${REGION}"
 echo "Repository: ${REPO_NAME}"
 
-# Login to ECR
-echo "📦 Logging into ECR..."
+# Login to AWS's ECR Public Registry for SageMaker base images
+echo "📦 Logging into AWS ECR for base images..."
+aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin 763104351884.dkr.ecr.${REGION}.amazonaws.com
+
+# Login to your ECR registry
+echo "📦 Logging into your ECR..."
 aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com
 
 # Create repository if it doesn't exist
@@ -29,8 +33,15 @@ else
 fi
 
 # Build the Docker image
-echo "🔨 Building Docker image..."
-docker build -t ${IMAGE_URI} --build-arg REGION=${REGION} .
+#echo "🔨 Building Docker image..."
+#docker build -t ${IMAGE_URI} --build-arg REGION=${REGION} .
+
+echo "🚀 Building and pushing multi-platform image for linux/amd64..."
+docker buildx build \
+  --platform linux/amd64 \
+  --build-arg REGION=${REGION} \
+  -t ${IMAGE_URI} \
+  --push .
 
 # Run a quick test to ensure the image works
 echo "🧪 Testing Docker image..."

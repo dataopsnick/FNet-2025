@@ -2,12 +2,12 @@
 import argparse
 import os
 from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
-from model import CausalFNetForCausalLM, FNetConfig
-from data import get_tokenized_dataset
-#import smdistributed.dataparallel.torch.torch_smddp
-#import smdistributed.modelparallel.torch as smp
+from src.model import CausalFNetForCausalLM, FNetConfig
+from src.data import get_tokenized_dataset
+import smdistributed.dataparallel.torch.torch_smddp # For distributed training
 
 def main():
+    
     parser = argparse.ArgumentParser()
     
     # --- SageMaker environment variables ---
@@ -31,7 +31,7 @@ def main():
 
     print("--- Loading Dataset ---")
     # We will load the dataset from the path SageMaker provides
-    tokenized_datasets, tokenizer = get_tokenized_dataset()
+    tokenized_datasets, tokenizer = get_tokenized_dataset(tokenizer_name="gpt2")
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
     print("--- Configuring Model ---")

@@ -5,5 +5,8 @@ evaluate==0.4.1
 peft==0.10.0
 scipy>=1.11.0
 numpy>=1.24.0
-sagemaker-training # Add this for SMDDP
-deepspeed # Required backend for model sharding
+nvidia-ml-py3
+rouge_score
+nltk
+sagemaker-training
+deepspeed
