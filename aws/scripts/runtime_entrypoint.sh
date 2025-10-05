@@ -25,6 +25,6 @@ fi
 
 # --- Execute the Python Training Script ---
 echo "🚀 Launching Python training script (src/train.py)..."
-python -u src/train.py "$@"
+python -u -m src.train "$@"
 
 echo "🎉 Training script finished."
