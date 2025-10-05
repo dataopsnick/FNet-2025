@@ -1,0 +1,1 @@
+# Dummy entrypoint for SageMaker validation
