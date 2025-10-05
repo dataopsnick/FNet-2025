@@ -1,5 +1,6 @@
 import sagemaker
 from sagemaker.pytorch import PyTorch
+from sagemaker.estimator import Estimator
 from sagemaker.tuner import HyperparameterTuner, CategoricalParameter, ContinuousParameter
 import boto3
 import time
@@ -48,6 +49,10 @@ hyperparameters={
 }
 
 # Create the PyTorch estimator
+#estimator = PyTorch(
+    #entry_point="train.py",
+    #source_dir="src",
+#estimator = Estimator(
 estimator = PyTorch(
     entry_point="train.py",
     source_dir="src",
@@ -60,6 +65,10 @@ estimator = PyTorch(
     sagemaker_session=sagemaker_session,
     distribution=distribution,
     hyperparameters=hyperparameters, # Pass the combined hyperparameters
+    environment={
+        "GIT_REPO_URL": "https://github.com/dataopsnick/FNet-2025.git",
+        "GIT_BRANCH": "sagemaker"
+    },
     metric_definitions=[
         {"Name": "train_loss", "Regex": r"'loss': (\S+)"},
         {"Name": "eval_loss", "Regex": r"'eval_loss': (\S+)"},
