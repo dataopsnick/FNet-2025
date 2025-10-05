@@ -4,7 +4,7 @@ import os
 from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from src.model import CausalFNetForCausalLM, FNetConfig
 from src.data import get_tokenized_dataset
-import smdistributed.dataparallel.torch.torch_smddp # For distributed training
+#import smdistributed.dataparallel.torch.torch_smddp # For distributed training
 
 def main():
     
