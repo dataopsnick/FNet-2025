@@ -8,20 +8,16 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Copy and install base requirements. These will be cached by Docker,
-# speeding up builds unless this file changes.
+# Copy and install base requirements. These will be cached by Docker.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     python -m nltk.downloader punkt wordnet
 
-# The source code will now be cloned at runtime inside the container.
-# We no longer need to copy the src directory into the image.
-# REMOVED: COPY src/ /app/src
-# REMOVED: COPY src/ds_config.json /app/src/ds_config.json
+# -----------------  START: MODIFICATION -----------------
 
-# Copy the new entrypoint script and make it executable
+# Copy the immutable bootstrapper script and make it executable.
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Set the new entrypoint script to run on container start
+# Set the bootstrapper script to run on container start.
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,13 +1,19 @@
 #!/bin/bash
-set -e # Exit immediately if a command exits with a non-zero status
+# =================================================================
+#  IMMUTABLE BOOTSTRAPPER (The "Key Turner")
+# =================================================================
+# This script is BAKED into the Docker image as its main ENTRYPOINT.
+# Its ONLY job is to clone the application repository and then
+# hand off control to the runtime script from that repository.
+# =================================================================
+
+set -eu
 
 # --- Configuration ---
-APP_DIR="/app" # Directory to clone the repo into
+APP_DIR="/app"
 
 # --- Parse Command Line Arguments ---
-# This loop parses arguments specific to this script (--git_repo_url, --git_branch)
-# and collects all other arguments to be passed on to the training script.
-declare -a train_args
+declare -a remaining_args
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --git_repo_url)
@@ -19,38 +25,35 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         *)
-            train_args+=("$1")
+            remaining_args+=("$1")
             shift
             ;;
     esac
 done
 
 # --- Validate arguments ---
-if [ -z "${GIT_REPO_URL}" ] || [ -z "${GIT_BRANCH}" ]; then
-  echo "Error: --git_repo_url and --git_branch must be provided."
+if [ -z "${GIT_REPO_URL:-}" ] || [ -z "${GIT_BRANCH:-}" ]; then
+  echo "FATAL: --git_repo_url and --git_branch must be provided." >&2
   exit 1
 fi
 
-echo "Git Repo URL: ${GIT_REPO_URL}"
-echo "Git Branch:   ${GIT_BRANCH}"
-echo "App Directory:  ${APP_DIR}"
-echo "Training args:  ${train_args[@]}"
+echo "✅ Bootstrapper initiated."
+echo "   - Git Repo URL: ${GIT_REPO_URL}"
+echo "   - Git Branch:   ${GIT_BRANCH}"
 
-# --- Clone the repository ---
-echo "Cloning repository..."
-# Clean up the directory in case of a retry on the same instance
-rm -rf ${APP_DIR}
-git clone --single-branch --branch "${GIT_BRANCH}" "${GIT_REPO_URL}" "${APP_DIR}"
+# --- Clone the Repository ---
+echo "Cloning application code..."
+rm -rf "${APP_DIR}"
+git clone --single-branch --branch "${GIT_BRANCH}" --depth 1 "${GIT_REPO_URL}" "${APP_DIR}"
 
-# --- Install/Update Dependencies ---
-cd ${APP_DIR}/aws
-if [ -f "requirements.txt" ]; then
-    echo "Found requirements.txt in the repo, installing/updating dependencies..."
-    pip install -r requirements.txt --upgrade
-else
-    echo "No requirements.txt found in the repository, using base dependencies."
+# --- Hand off Control ---
+RUNTIME_SCRIPT="${APP_DIR}/aws/scripts/runtime_entrypoint.sh"
+echo "Handing off execution to the runtime script: ${RUNTIME_SCRIPT}"
+
+if [ ! -f "${RUNTIME_SCRIPT}" ]; then
+    echo "FATAL: Runtime script not found at ${RUNTIME_SCRIPT} in the cloned repository." >&2
+    exit 1
 fi
 
-# --- Execute the Python Training Script ---
-echo "Starting training script..."
-python src/train.py "${train_args[@]}"
+# Use 'exec' to replace this process, ensuring proper signal handling.
+exec bash "${RUNTIME_SCRIPT}" "${remaining_args[@]}"
