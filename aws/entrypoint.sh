@@ -43,7 +43,7 @@ rm -rf ${APP_DIR}
 git clone --single-branch --branch "${GIT_BRANCH}" "${GIT_REPO_URL}" "${APP_DIR}"
 
 # --- Install/Update Dependencies ---
-cd ${APP_DIR}
+cd ${APP_DIR}/aws
 if [ -f "requirements.txt" ]; then
     echo "Found requirements.txt in the repo, installing/updating dependencies..."
     pip install -r requirements.txt --upgrade
