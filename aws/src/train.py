@@ -58,7 +58,7 @@ def main():
         per_device_train_batch_size=args.per_device_train_batch_size,
         learning_rate=args.learning_rate,
         gradient_accumulation_steps=8,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         logging_steps=50,
         bf16=True,
