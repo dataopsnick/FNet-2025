@@ -2,7 +2,7 @@
 set -e # Exit immediately if a command exits with a non-zero status
 
 # --- Configuration ---
-APP_DIR="/app/src" # Directory to clone the repo into
+APP_DIR="/app" # Directory to clone the repo into
 
 # --- Parse Command Line Arguments ---
 # This loop parses arguments specific to this script (--git_repo_url, --git_branch)
