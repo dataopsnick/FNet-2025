@@ -29,10 +29,10 @@ def main():
     parser.add_argument("--per_device_train_batch_size", type=int, default=8)
 
     args, _ = parser.parse_known_args()
-    script_dir = os.path.dirname(__file__)
-    deepspeed_config_path = os.path.join(script_dir, "ds_config.json")
-    with open(deepspeed_config_path, "r") as f:
-        deepspeed_config = json.load(f)
+    #script_dir = os.path.dirname(__file__)
+    #deepspeed_config_path = os.path.join(script_dir, "ds_config.json")
+    #with open(deepspeed_config_path, "r") as f:
+    #    deepspeed_config = json.load(f)
 
     print("--- Loading Dataset ---")
     # We will load the dataset from the path SageMaker provides
@@ -68,7 +68,7 @@ def main():
         logging_steps=50,
         bf16=True,
         report_to="none",
-        deepspeed=deepspeed_config,
+        #deepspeed=deepspeed_config,
     )
 
     trainer = Trainer(
