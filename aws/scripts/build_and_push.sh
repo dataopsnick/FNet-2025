@@ -43,14 +43,6 @@ docker buildx build \
   -t ${IMAGE_URI} \
   --push .
 
-# Run a quick test to ensure the image works
-echo "🧪 Testing Docker image..."
-docker run --rm ${IMAGE_URI} python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}')"
-
-# Push to ECR
-echo "⬆️ Pushing image to ECR..."
-docker push ${IMAGE_URI}
-
 echo "✅ Successfully pushed image: ${IMAGE_URI}"
 echo ""
 echo "Next steps:"

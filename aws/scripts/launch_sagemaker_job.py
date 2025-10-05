@@ -49,13 +49,14 @@ hyperparameters={
 
 # Create the PyTorch estimator
 estimator = PyTorch(
+    entry_point="train.py",
+    source_dir="src",
     image_uri=image_uri,
     role=sagemaker_role,
     instance_count=1,
-    instance_type= "ml.p3.8xlarge",
+    instance_type='ml.g4dn.2xlarge', # "ml.p3.8xlarge",
     volume_size=100,
     output_path=f"s3://{bucket}/fnet-training/output",
-    code_location=f"s3://{bucket}/fnet-training/code",
     sagemaker_session=sagemaker_session,
     distribution=distribution,
     hyperparameters=hyperparameters, # Pass the combined hyperparameters
@@ -73,11 +74,11 @@ estimator = PyTorch(
 hyperparameter_ranges = {
     # Model architecture parameters
     "hidden_size": CategoricalParameter([1024, 1536]), #[256, 384, 512, 768, 1024, 1280, 1536]),
-    "num_hidden_layers": CategoricalParameter([4]), #[4, 6, 8, 10, 12]),
+    "num_hidden_layers": CategoricalParameter([4, 6]), #[4, 6, 8, 10, 12]),
     "stft_window_size": CategoricalParameter([512, 1024]), #[64, 128, 256, 512, 1024]),
     
     # Training parameters  
-    "learning_rate": ContinuousParameter(1e-5, 1e-3),
+    "learning_rate": CategoricalParameter([1e-5, 1e-3]),
 }
 
 # Configure the tuner
@@ -88,8 +89,8 @@ tuner = HyperparameterTuner(
     metric_definitions=estimator.metric_definitions,
     strategy="Grid",
     objective_type="Minimize",
-    max_jobs=4,
-    max_parallel_jobs=2,
+    max_jobs=16,
+    max_parallel_jobs=1,
     early_stopping_type="Auto",
 )
 
