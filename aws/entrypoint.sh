@@ -41,6 +41,7 @@ echo "✅ Bootstrapper initiated."
 echo "   - Git Repo URL: ${GIT_REPO_URL}"
 echo "   - Git Branch:   ${GIT_BRANCH}"
 
+cd /
 # --- Clone the Repository ---
 echo "Cloning application code..."
 rm -rf "${APP_DIR}"
