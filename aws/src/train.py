@@ -63,6 +63,7 @@ def main():
         logging_steps=50,
         bf16=True,
         report_to="none",
+        deepspeed="src/ds_config.json",
     )
 
     trainer = Trainer(
