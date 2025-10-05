@@ -47,6 +47,12 @@ echo "Cloning application code..."
 rm -rf "${APP_DIR}"
 git clone --single-branch --branch "${GIT_BRANCH}" --depth 1 "${GIT_REPO_URL}" "${APP_DIR}"
 
+# --- Show the resulting file structure---
+echo "Performing recursive list of the cloned directory at ${APP_DIR}..."
+# Use 'ls -laR' for a recursive, detailed, long-format listing.
+# This will show us everything: subdirectories, file permissions, owners, and sizes.
+ls -laR "${APP_DIR}"
+
 # --- Hand off Control ---
 RUNTIME_SCRIPT="${APP_DIR}/aws/scripts/runtime_entrypoint.sh"
 echo "Handing off execution to the runtime script: ${RUNTIME_SCRIPT}"
