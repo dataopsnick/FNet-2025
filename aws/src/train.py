@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--num_train_epochs", type=int, default=15)
     parser.add_argument("--per_device_train_batch_size", type=int, default=8)
 
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     print("--- Loading Dataset ---")
     # We will load the dataset from the path SageMaker provides
