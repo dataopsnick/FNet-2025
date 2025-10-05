@@ -53,4 +53,4 @@ fi
 
 # --- Execute the Python Training Script ---
 echo "Starting training script..."
-python -m src.train "${train_args[@]}"
+python src/train.py "${train_args[@]}"
