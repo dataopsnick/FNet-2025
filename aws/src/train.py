@@ -1,6 +1,7 @@
 # src/train.py
 import argparse
 import os
+import json
 from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from src.model import CausalFNetForCausalLM, FNetConfig
 from src.data import get_tokenized_dataset
@@ -30,6 +31,8 @@ def main():
     args, _ = parser.parse_known_args()
     script_dir = os.path.dirname(__file__)
     deepspeed_config_path = os.path.join(script_dir, "ds_config.json")
+    with open(deepspeed_config_path, "r") as f:
+        deepspeed_config = json.load(f)
 
     print("--- Loading Dataset ---")
     # We will load the dataset from the path SageMaker provides
@@ -65,7 +68,7 @@ def main():
         logging_steps=50,
         bf16=True,
         report_to="none",
-        deepspeed=deepspeed_config_path,
+        deepspeed=deepspeed_config,
     )
 
     trainer = Trainer(
