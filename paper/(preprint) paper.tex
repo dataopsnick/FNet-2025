@@ -69,7 +69,7 @@ The primary challenge in creating a generative FNet is ensuring causality—that
 Our `CausalSTFTLayer` solves this by operating on sliding windows. For an input tensor $x$ of shape `(batch_size, seq_len, hidden_size)` and a given `window_size`, the process is as follows:
 \begin{enumerate}
     \item \textbf{Causal Padding}: The input sequence $x$ is padded on the left (the past) with `window_size - 1` zero vectors. This ensures that the first token's window contains only itself and padding, and every subsequent token's window contains only itself and preceding tokens.
-    \item \textbf{Windowing via Striding}: We use efficient tensor striding (e.g., `torch.as_strided`) to create a view of the padded tensor with shape `(batch_size, seq_len, window_size, hidden_size)`. Each of the `seq_len` elements along the second dimension corresponds to a window of `window_size` tokens, where each window is causally correct.
+    \item \textbf{Windowing via Striding}: We use efficient tensor striding (e.g., `torch.as_strided`) to create a causally-correct view of the padded tensor with shape `(batch_size, seq_len, window_size, hidden_size)`. This avoids memory duplication by creating overlapping windows of `window_size` tokens for each position in the sequence.
     \item \textbf{Fourier Transform}: A 2D Fast Fourier Transform (`torch.fft.fftn`) is applied to each window across the window and hidden dimensions (the last two dimensions). We take the real part of the complex result.
     \item \textbf{Projection}: The transformed windows, now of shape `(batch_size, seq_len, window_size, hidden_size)`, are flattened and projected back to the original `hidden_size` with a linear layer.
 \end{enumerate}
@@ -171,6 +171,51 @@ STUDENT MODEL GENERATION:
 ... "d many to땀 Jenkins clar onitan530 tantal note2 
 shopper240 per2ᥣ00350�pq Incorrect Complexity...
 \end{verbatim}
+
+\subsection{Experiment 3: Hyperparameter Ablation Study}
+To better understand the architectural trade-offs and identify a more optimal configuration, we conducted a systematic ablation study. We explored the impact of four key hyperparameters: the hidden dimension size (`d_model`), the number of layers, the feed-forward network (FFN) intermediate size, and the STFT window size.
+
+\textbf{Setup}: We trained 16 different model configurations, varying the aforementioned hyperparameters. All models were trained using the knowledge distillation setup from Experiment 2 on the GSM8K dataset.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.9\textwidth]{ablation_plot.png} % Note: Replace with your actual figure file
+\caption{Final validation loss vs. number of parameters for all ablation models. Marker size is proportional to training time. The best-performing model is annotated, demonstrating that a higher parameter count does not guarantee a lower loss.}
+\label{fig:ablation_plot}
+\end{figure}
+
+\textbf{Results Analysis}: The results, detailed in Table \ref{tab:ablation_results} and visualized in Figure \ref{fig:ablation_plot}, reveal several key insights. While performance generally improves with scale, the relationship is not linear. The best-performing configuration was `512_3_2048_32` (`d_model`=512, layers=3, FFN=2048, window=32), which achieved a validation loss of 36.95. Notably, this model contains only 57.5M parameters, significantly outperforming larger models, including a 233.6M parameter variant. This suggests that a wider FFN combined with a moderately sized STFT window is more parameter-efficient than simply increasing layer depth or hidden size indiscriminately. Models with a hidden dimension of 512 consistently outperformed smaller variants, establishing it as a critical factor for performance.
+
+\begin{table}[h]
+\centering
+\caption{Ablation study results, sorted by final validation loss.}
+\label{tab:ablation_results}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Model Config (`d\_model`\_`layers`\_`ffn`\_`window`)} & \textbf{Params (M)} & \textbf{Final Loss} & \textbf{Training Time (min)} \\
+\midrule
+\textbf{512\_3\_2048\_32} & \textbf{57.47} & \textbf{36.95} & \textbf{4.56} \\
+512\_3\_2048\_64 & 82.63 & 39.30 & 6.60 \\
+512\_3\_1024\_64 & 79.48 & 39.30 & 6.55 \\
+512\_3\_1024\_256 & 230.48 & 39.33 & 19.36 \\
+num\_hidden\_layers\_3 & 233.63 & 39.47 & 19.43 \\
+512\_3\_2048\_128 & 132.96 & 39.89 & 10.90 \\
+512\_3\_1024\_128 & 129.82 & 40.00 & 10.62 \\
+256\_3\_1024\_256 & 64.91 & 42.43 & 9.69 \\
+256\_3\_1024\_64 & 27.16 & 42.71 & 3.91 \\
+256\_3\_1024\_128 & 39.74 & 42.83 & 5.82 \\
+128\_3\_1024\_256 & 19.87 & 46.65 & 5.56 \\
+128\_3\_1024\_128 & 13.58 & 47.29 & 3.50 \\
+128\_3\_1024\_64 & 10.44 & 47.57 & 2.76 \\
+128\_6\_512\_64 & 13.58 & 52.43 & 3.87 \\
+128\_8\_512\_64 & 15.95 & 52.81 & 4.61 \\
+128\_10\_512\_64 & 18.31 & 52.83 & 5.36 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
 
 \section{Discussion}
 The primary goal of this work was to design a viable FNet decoder architecture and demonstrate that it can be trained effectively. Our experiments confirm several key points.
