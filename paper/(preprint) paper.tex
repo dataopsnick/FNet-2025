@@ -41,15 +41,15 @@ Despite this success with encoders, the FNet paper explicitly left the extension
     \textit{"Throughout this work we have restricted our focus to encoders. FNet decoders can be designed by `causally' masking the Vandermonde matrix, but a lower level implementation is required to introduce causal masking to FFTs. How to adapt Fourier mixing for encoder-decoder cross-attention is an open question... We have focused on tasks which do not require generation so we leave FNet decoders and encoder-decoder setups to future work..."} --- \citet{lee2021fnet}
 \end{quote}
 
-This paper directly addresses that challenge. We propose and implement a novel **Causal Short-Time Fourier Transform (STFT) FNet**, a decoder-only architecture designed for autoregressive language modeling. Our primary innovation is the `CausalSTFTLayer`, which circumvents the need for modifying the FFT algorithm itself. Instead, it uses a sliding window approach with careful padding and tensor striding to ensure that each token's representation is mixed only with those of previous tokens, thereby strictly enforcing causality at the architectural level.
+This paper directly addresses that challenge. We propose and implement a novel \textbf{Causal Short-Time Fourier Transform (STFT) FNet}, a decoder-only architecture designed for autoregressive language modeling. Our primary innovation is the `CausalSTFTLayer`, which circumvents the need for modifying the FFT algorithm itself. Instead, it uses a sliding window approach with careful padding and tensor striding to ensure that each token's representation is mixed only with those of previous tokens, thereby strictly enforcing causality at the architectural level.
 
-To demonstrate the viability of this new architecture, we conduct two experiments on the GSM8K mathematical reasoning dataset. First, we train a small-scale Causal STFT FNet from scratch to establish a performance baseline. Second, recognizing the immense cost of pre-training large models, we explore a more practical training regimen: **knowledge distillation**. We use a pre-trained, powerful teacher model (Qwen2-0.5B-Instruct) to train our FNet-based student, leveraging a custom trainer that combines standard cross-entropy loss with a Kullback-Leibler (KL) divergence loss on the models' probability distributions.
+To demonstrate the viability of this new architecture, we conduct two experiments on the GSM8K mathematical reasoning dataset. First, we train a small-scale Causal STFT FNet from scratch to establish a performance baseline. Second, recognizing the immense cost of pre-training large models, we explore a more practical training regimen: \textbf{knowledge distillation}. We use a pre-trained, powerful teacher model (Qwen2-0.5B-Instruct) to train our FNet-based student, leveraging a custom trainer that combines standard cross-entropy loss with a Kullback-Leibler (KL) divergence loss on the models' probability distributions.
 
 Our contributions are:
 \begin{enumerate}
-    \item A novel **Causal STFT Layer** that enables the use of Fourier transforms for token mixing in a causally correct, autoregressive manner.
-    \item A complete, practical implementation of a **decoder-only FNet architecture** for language modeling.
-    \item A demonstration of training this architecture both **from scratch** and through **knowledge distillation**, providing a proof-of-concept for its learning capability and a practical path to achieving competitive performance.
+    \item A novel \textbf{Causal STFT Layer} that enables the use of Fourier transforms for token mixing in a causally correct, autoregressive manner.
+    \item A complete, practical implementation of a \textbf{decoder-only FNet architecture} for language modeling.
+    \item A demonstration of training this architecture both \textbf{from scratch} and through \textbf{knowledge distillation}, providing a proof-of-concept for its learning capability and a practical path to achieving competitive performance.
 \end{enumerate}
 
 \section{Methodology}
@@ -66,12 +66,12 @@ The FFN is a standard two-layer network with a GELU activation function. The key
 \subsection{The Causal Short-Time Fourier Transform (STFT) Layer}
 The primary challenge in creating a generative FNet is ensuring causality—that the prediction for a token at position $t$ depends only on the known tokens at positions $<t$. The original FNet applied a 2D FFT across the entire sequence, which is inherently non-causal as it allows every token to see every other token.
 
-Our `CausalSTFTLayer` solves this by operating on sliding windows. For an input tensor $x$ of shape `(batch_size, seq_len, hidden_size)` and a given `window_size`, the process is as follows:
+Our \texttt{CausalSTFTLayer} solves this by operating on sliding windows. For an input tensor $x$ of shape \texttt{(batch\_size, seq\_len, hidden\_size)} and a given \texttt{window\_size}, the process is as follows:
 \begin{enumerate}
-    \item \textbf{Causal Padding}: The input sequence $x$ is padded on the left (the past) with `window_size - 1` zero vectors. This ensures that the first token's window contains only itself and padding, and every subsequent token's window contains only itself and preceding tokens.
-    \item \textbf{Windowing via Striding}: We use efficient tensor striding (e.g., `torch.as_strided`) to create a causally-correct view of the padded tensor with shape `(batch_size, seq_len, window_size, hidden_size)`. This avoids memory duplication by creating overlapping windows of `window_size` tokens for each position in the sequence.
-    \item \textbf{Fourier Transform}: A 2D Fast Fourier Transform (`torch.fft.fftn`) is applied to each window across the window and hidden dimensions (the last two dimensions). We take the real part of the complex result.
-    \item \textbf{Projection}: The transformed windows, now of shape `(batch_size, seq_len, window_size, hidden_size)`, are flattened and projected back to the original `hidden_size` with a linear layer.
+    \item \textbf{Causal Padding}: The input sequence $x$ is padded on the left (the past) with \texttt{window\_size - 1} zero vectors. This ensures that the first token's window contains only itself and padding, and every subsequent token's window contains only itself and preceding tokens.
+    \item \textbf{Windowing via Striding}: We use efficient tensor striding (e.g., \texttt{torch.as\_strided}) to create a causally-correct view of the padded tensor with shape \texttt{(batch\_size, seq\_len, window\_size, hidden\_size)}. This avoids memory duplication by creating overlapping windows of \texttt{window\_size} tokens for each position in the sequence.
+    \item \textbf{Fourier Transform}: A 2D Fast Fourier Transform (\texttt{torch.fft.fftn}) is applied to each window across the window and hidden dimensions (the last two dimensions). We take the real part of the complex result.
+    \item \textbf{Projection}: The transformed windows, now of shape \texttt{(batch\_size, seq\_len, window\_size, hidden\_size)}, are flattened and projected back to the original \texttt{hidden\_size} with a linear layer.
 \end{enumerate}
 This design effectively mixes information from the local, causal neighborhood of each token in the frequency domain, maintaining the spirit of FNet while respecting the autoregressive constraint.
 
@@ -173,7 +173,7 @@ shopper240 per2ᥣ00350�pq Incorrect Complexity...
 \end{verbatim}
 
 \subsection{Experiment 3: Hyperparameter Ablation Study}
-To better understand the architectural trade-offs and identify a more optimal configuration, we conducted a systematic ablation study. We explored the impact of four key hyperparameters: the hidden dimension size (`d_model`), the number of layers, the feed-forward network (FFN) intermediate size, and the STFT window size.
+To better understand the architectural trade-offs and identify a more optimal configuration, we conducted a systematic ablation study. We explored the impact of four key hyperparameters: the hidden dimension size (\texttt{d\_model}), the number of layers, the feed-forward network (FFN) intermediate size, and the STFT window size.
 
 \textbf{Setup}: We trained 16 different model configurations, varying the aforementioned hyperparameters. All models were trained using the knowledge distillation setup from Experiment 2 on the GSM8K dataset.
 
@@ -184,7 +184,16 @@ To better understand the architectural trade-offs and identify a more optimal co
 \label{fig:ablation_plot}
 \end{figure}
 
-\textbf{Results Analysis}: The results, detailed in Table \ref{tab:ablation_results} and visualized in Figure \ref{fig:ablation_plot}, reveal several key insights. While performance generally improves with scale, the relationship is not linear. The best-performing configuration was `512_3_2048_32` (`d_model`=512, layers=3, FFN=2048, window=32), which achieved a validation loss of 36.95. Notably, this model contains only 57.5M parameters, significantly outperforming larger models, including a 233.6M parameter variant. This suggests that a wider FFN combined with a moderately sized STFT window is more parameter-efficient than simply increasing layer depth or hidden size indiscriminately. Models with a hidden dimension of 512 consistently outperformed smaller variants, establishing it as a critical factor for performance.
+\textbf{Results Analysis}: The results, detailed in Table~\ref{tab:ablation_results} 
+and visualized in Figure~\ref{fig:ablation_plot}, reveal several key insights. 
+While performance generally improves with scale, the relationship is not linear. 
+The best-performing configuration was \texttt{512\_3\_2048\_32} 
+(\texttt{d\_model} = 512, layers = 3, FFN = 2048, window = 32), which 
+achieved a validation loss of 36.95. Notably, this model contains only 57.5M 
+parameters, significantly outperforming larger models. This suggests that a wider 
+FFN combined with a moderately sized STFT window is more parameter-efficient than 
+simply increasing layer depth or hidden size indiscriminately. Models with a 
+hidden dimension of 512 consistently outperformed smaller variants, establishing it as a critical factor for performance.
 
 \begin{table}[h]
 \centering
